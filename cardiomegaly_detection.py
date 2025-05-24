@@ -23,6 +23,7 @@ if __name__ == "__main__":
     parser.add_argument("--output_file", type=str, required=False)
     parser.add_argument("--show_plots", type=bool, default=False, required=False)
     parser.add_argument("--verbose", type=bool, default=False, required=False)
+    parser.add_argument("--threshold", type=float, default=0.5, required=False)
     args = parser.parse_args()
     
     if os.path.isdir(args.path):
@@ -105,7 +106,7 @@ if __name__ == "__main__":
             plt.show()
         
         comparison = max(lungs_width, diaphragm_width)
-        cardiomegaly = (heart_width >= 0.5 * comparison)
+        cardiomegaly = (heart_width >= args.threshold * comparison)
         
         if args.verbose:
             print(f"""File name: {filename}\nLungs width: {lungs_width}\nHeart width: {heart_width}\nDiaphragm width: {diaphragm_width}\nCardiomegaly: {cardiomegaly}""")
