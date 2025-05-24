@@ -1,6 +1,8 @@
 import argparse
 import os
 
+import pandas as pd
+import matplotlib.pyplot as plt
 import numpy as np
 import skimage
 import torch
@@ -17,18 +19,21 @@ def image_to_torch(img: np.ndarray):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument("--path")    
+    parser.add_argument("--path", type=str, required=True)    
+    parser.add_argument("--output_file", type=str, required=False)
+    parser.add_argument("--show_plots", type=bool, default=False, required=False)
+    parser.add_argument("--verbose", type=bool, default=False, required=False)
     args = parser.parse_args()
     
     if os.path.isdir(args.path):
-        files = os.listdir(args.path)
-        file_paths = [os.path.join(args.path, file) for file in files if file.endswith(".png")]
+        file_names = os.listdir(args.path)
+        file_paths = [os.path.join(args.path, file) for file in file_names if file.endswith(".png")]
         imgs = [skimage.io.imread(file_path) for file_path in file_paths]
     else:
-        file_paths = [os.path.split(args.path)[1]]
+        file_names = [os.path.split(args.path)[1]]
         imgs = [skimage.io.imread(args.path)]
         
-    print(len(imgs))
+    print(f"Parsing files: {len(imgs)}")
 
     model = xrv.baseline_models.chestx_det.PSPNet()
     targets = list(model.targets)
@@ -37,7 +42,9 @@ if __name__ == "__main__":
     r_lung_index = targets.index("Right Lung")
     diaphragm_index = targets.index("Facies Diaphragmatica")
     
-    for img, filename in zip(imgs, file_paths):
+    output_list = []
+    
+    for img, filename in zip(imgs, file_names):
         img = image_to_torch(img)
         with torch.no_grad():
             pred = model(img)
@@ -48,54 +55,68 @@ if __name__ == "__main__":
         
         heart_width = 0
         
+        #heart width
         for col in range(pred[0, heart_index].shape[1]-1, -1, -1):
-            if pred[0, heart_index][col].sum() > 0:
+            if pred[0, heart_index][:,col].sum() > 0:
                 heart_width = col
                 break
 
         for col in range(pred[0, heart_index].shape[1]):
-            if pred[0, heart_index][col].sum() > 0:
+            if pred[0, heart_index][:,col].sum() > 0:
                 heart_width -= col
                 break
+        
+        if args.show_plots:
+            plt.imshow(pred[0, heart_index])
+            plt.show()
 
         lungs_width = 0
         
-        #r lung rightmost
-        for col in range(pred[0, r_lung_index].shape[1]-1, -1, -1):
-            if pred[0, r_lung_index][col].sum() > 0:
+        #r lung rightmost (on right side of x-ray)
+        for col in range(pred[0, l_lung_index].shape[1]-1, -1, -1):
+            if pred[0, l_lung_index][:,col].sum() > 0:
                 lungs_width = col
                 break
 
-        #l lung leftmost 
-        for col in range(pred[0, l_lung_index].shape[1]):
-            if pred[0, r_lung_index][col].sum() > 0:
+        #r lung leftmost (on left side of x-ray)
+        for col in range(pred[0, r_lung_index].shape[1]):
+            if pred[0, r_lung_index][:,col].sum() > 0:
                 lungs_width -= col
                 break
+
+        if args.show_plots:
+            plt.imshow((pred[0, l_lung_index] + pred[0, r_lung_index]))
+            plt.show()
             
         diaphragm_width = 0
         
         for col in range(pred[0, diaphragm_index].shape[1]-1, -1, -1):
-            if pred[0, diaphragm_index][col].sum() > 0:
+            if pred[0, diaphragm_index][:,col].sum() > 0:
                 diaphragm_width = col
                 break
             
         for col in range(pred[0, diaphragm_index].shape[1]):
-            if pred[0, diaphragm_index][col].sum() > 0:
-                diaphragm_width -= col
+            if pred[0, diaphragm_index][:,col].sum() > 0:
+                diaphragm_width = diaphragm_width - col
                 break
         
-        cardiomegaly = (heart_width >= 0.5 * lungs_width)
-        # cardiomegaly = (heart_width >= 0.5 * lungs_width) or (heart_width >= 0.5 * diaphragm_width)
+        if args.show_plots:
+            plt.imshow(pred[0, diaphragm_index])
+            plt.show()
         
-        print(f"""File name: {filename}
-        Lungs width: {lungs_width}
-        Heart width: {heart_width}
-        Diaphragm width: {diaphragm_width}
-        Cardiomegaly: {cardiomegaly}""")
+        comparison = max(lungs_width, diaphragm_width)
+        cardiomegaly = (heart_width >= 0.5 * comparison)
+        
+        if args.verbose:
+            print(f"""File name: {filename}\nLungs width: {lungs_width}\nHeart width: {heart_width}\nDiaphragm width: {diaphragm_width}\nCardiomegaly: {cardiomegaly}""")
+        
+        if args.output_file:
+            output_list.append([filename.split(".")[0],
+                                heart_width,
+                                lungs_width,
+                                diaphragm_width,
+                                cardiomegaly])
     
-    """fig, axs = plt.subplots(2,2)
-    axs[0,0].imshow(img[0])
-    axs[0,1].imshow(pred[0,heart_index])
-    axs[1,0].imshow(pred[0,l_lung_index])
-    axs[1,1].imshow(pred[0,r_lung_index])
-    plt.show()"""
+    if args.output_file:
+        df = pd.DataFrame(output_list, columns=["file_name", "heart_width", "lungs_width", "diaphragm_width", "cardiomegaly"])
+        df.to_csv(args.output_file, index = False)
