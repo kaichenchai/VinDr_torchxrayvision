@@ -5,7 +5,6 @@ import numpy as np
 import skimage
 import torch
 import torchvision
-import matplotlib.pyplot as plt
 import torchxrayvision as xrv
 
 def image_to_torch(img: np.ndarray):
@@ -30,38 +29,32 @@ if __name__ == "__main__":
         imgs = [skimage.io.imread(args.path)]
         
     print(len(imgs))
-    
+
     model = xrv.baseline_models.chestx_det.PSPNet()
+    targets = list(model.targets)
+    heart_index = targets.index("Heart")
+    l_lung_index = targets.index("Left Lung")
+    r_lung_index = targets.index("Right Lung")
+    diaphragm_index = targets.index("Facies Diaphragmatica")
+    
     for img, filename in zip(imgs, file_paths):
         img = image_to_torch(img)
         with torch.no_grad():
             pred = model(img)
-            
-        targets = list(model.targets)
-        heart_index = targets.index("Heart")
-        l_lung_index = targets.index("Left Lung")
-        r_lung_index = targets.index("Right Lung")
-        index_list = [heart_index, l_lung_index, r_lung_index]
-        
-        print(pred[0, heart_index])
-        
+                
         pred = 1 / (1 + np.exp(-pred))  # sigmoid
         pred[pred < 0.5] = 0
         pred[pred > 0.5] = 1
         
-        print(pred[0, heart_index])
-
         heart_width = 0
         
         for col in range(pred[0, heart_index].shape[1]-1, -1, -1):
             if pred[0, heart_index][col].sum() > 0:
-                print(col)
                 heart_width = col
                 break
 
         for col in range(pred[0, heart_index].shape[1]):
             if pred[0, heart_index][col].sum() > 0:
-                print(col)
                 heart_width -= col
                 break
 
@@ -70,22 +63,34 @@ if __name__ == "__main__":
         #r lung rightmost
         for col in range(pred[0, r_lung_index].shape[1]-1, -1, -1):
             if pred[0, r_lung_index][col].sum() > 0:
-                print(col)
                 lungs_width = col
                 break
 
         #l lung leftmost 
         for col in range(pred[0, l_lung_index].shape[1]):
             if pred[0, r_lung_index][col].sum() > 0:
-                print(col)
                 lungs_width -= col
                 break
+            
+        diaphragm_width = 0
         
-        cardiomegaly = heart_width >= 0.5 * lungs_width
+        for col in range(pred[0, diaphragm_index].shape[1]-1, -1, -1):
+            if pred[0, diaphragm_index][col].sum() > 0:
+                diaphragm_width = col
+                break
+            
+        for col in range(pred[0, diaphragm_index].shape[1]):
+            if pred[0, diaphragm_index][col].sum() > 0:
+                diaphragm_width -= col
+                break
+        
+        cardiomegaly = (heart_width >= 0.5 * lungs_width)
+        # cardiomegaly = (heart_width >= 0.5 * lungs_width) or (heart_width >= 0.5 * diaphragm_width)
         
         print(f"""File name: {filename}
         Lungs width: {lungs_width}
         Heart width: {heart_width}
+        Diaphragm width: {diaphragm_width}
         Cardiomegaly: {cardiomegaly}""")
     
     """fig, axs = plt.subplots(2,2)
