@@ -1,6 +1,7 @@
 import argparse
 import os
 
+from tqdm import tqdm
 import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
@@ -45,7 +46,7 @@ if __name__ == "__main__":
     
     output_list = []
     
-    for img, filename in zip(imgs, file_names):
+    for img, filename in tqdm(zip(imgs, file_names), total=len(imgs)):
         img = image_to_torch(img)
         with torch.no_grad():
             pred = model(img)
