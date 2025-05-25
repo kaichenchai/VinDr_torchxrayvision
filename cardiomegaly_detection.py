@@ -55,22 +55,27 @@ if __name__ == "__main__":
         pred[pred < 0.5] = 0
         pred[pred > 0.5] = 1
         
-        heart_width = 0
         
         #heart width
         for col in range(pred[0, heart_index].shape[1]-1, -1, -1):
             if pred[0, heart_index][:,col].sum() > 0:
-                heart_width = col
+                heart_x_max = col
                 break
 
         for col in range(pred[0, heart_index].shape[1]):
             if pred[0, heart_index][:,col].sum() > 0:
-                heart_width -= col
+                heart_x_min = col
                 break
+            
+        heart_width = heart_x_max - heart_x_min
         
-        if args.show_plots:
-            plt.imshow(pred[0, heart_index])
-            plt.show()
+        for row in range(pred[0, heart_index].shape[0]):
+            if pred[0, heart_index][row, :].sum() > 0:
+                heart_y_max = row
+        
+        for row in range(pred[0, heart_index].shape[0]-1, -1, -1):
+            if pred[0, heart_index][row, :].sum() > 0:
+                heart_y_min = row
 
         lungs_width = 0
         
@@ -85,10 +90,6 @@ if __name__ == "__main__":
             if pred[0, r_lung_index][:,col].sum() > 0:
                 lungs_width -= col
                 break
-
-        if args.show_plots:
-            plt.imshow((pred[0, l_lung_index] + pred[0, r_lung_index]))
-            plt.show()
             
         diaphragm_width = 0
         
@@ -101,9 +102,9 @@ if __name__ == "__main__":
             if pred[0, diaphragm_index][:,col].sum() > 0:
                 diaphragm_width = diaphragm_width - col
                 break
-        
+            
         if args.show_plots:
-            plt.imshow(pred[0, diaphragm_index])
+            plt.imshow((pred[0, l_lung_index] + pred[0, r_lung_index] + pred[0, diaphragm_index] +pred[0, heart_index]))
             plt.show()
         
         comparison = max(lungs_width, diaphragm_width)
@@ -117,8 +118,20 @@ if __name__ == "__main__":
                                 heart_width,
                                 lungs_width,
                                 diaphragm_width,
-                                cardiomegaly])
+                                cardiomegaly,
+                                heart_x_min,
+                                heart_y_min,
+                                heart_x_max,
+                                heart_y_max])
     
     if args.output_file:
-        df = pd.DataFrame(output_list, columns=["file_name", "heart_width", "lungs_width", "diaphragm_width", "cardiomegaly"])
+        df = pd.DataFrame(output_list, columns=["file_name",
+                                                "heart_width",
+                                                "lungs_width",
+                                                "diaphragm_width",
+                                                "cardiomegaly",
+                                                "heart_x_min",
+                                                "heart_y_min",
+                                                "heart_x_max",
+                                                "heart_y_max"])
         df.to_csv(args.output_file, index = False)

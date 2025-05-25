@@ -1,2 +1,2 @@
-file_name,heart_width,lungs_width,diaphragm_width,cardiomegaly
-40497da14aafc428210b623fc8445288,226,390,406,True
+file_name,heart_width,lungs_width,diaphragm_width,cardiomegaly,heart_x_min,heart_y_min,heart_x_max,heart_y_max
+40497da14aafc428210b623fc8445288,226,390,406,True,190,254,416,429
